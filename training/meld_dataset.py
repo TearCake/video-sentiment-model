@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
-import pandas as pd
+import subprocess
 from transformers import AutoTokenizer
+import pandas as pd
 import os
 import cv2
 import numpy as np
@@ -67,6 +68,22 @@ class MELDDataset(Dataset):
         
         return torch.FloatTensor(np.array(frames)).permute(0, 3, 1, 2)  # Convert to tensor and change shape to (C, H, W)
     
+    def _extract_audio_features(self, video_path):
+        audio_path = video_path.replace('.mp4', '.wav')
+        
+        try:
+            subprocess.run([
+                'ffmpeg',
+                '-i', video_path,
+                '-vn',
+                '-acodec', 'pcm_s16le',
+                '-ar', '16000',
+                '-ac', '1',
+                audio_path
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            raise ValueError(f"Error extracting audio features: {e}")
+    
     def __len__(self):
         return len(self.data)
     
@@ -82,9 +99,10 @@ class MELDDataset(Dataset):
         
         text_inputs = self.tokenizer(row['Utterance'], return_tensors="pt", padding='max_length', max_length=128, truncation=True)
         
-        video_frames = self._load_video_frames(path)
+        # video_frames = self._load_video_frames(path)
+        self._extract_audio_features(path)
         
-        print(video_frames)  # Print the shape of the video frames tensor for debugging
+        # print(video_frames)  # Print the shape of the video frames tensor for debugging
 
 if __name__ == "__main__":
     meld = MELDDataset(csv_path="dataset\dev\dev_sent_emo.csv",
