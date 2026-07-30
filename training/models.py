@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import BertModel
-from torchvision import models as vision_models
+from torchvision.models.video import r3d_18, R3D_18_Weights
 from meld_dataset import MELDDataset
 from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_score
 from torch.utils.tensorboard import SummaryWriter
@@ -28,7 +28,7 @@ class TextEncoder(nn.Module):
 class VideoEncoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.backbone = vision_models.video.r3d_18(pretrained=True)
+        self.backbone = r3d_18(weights=R3D_18_Weights.DEFAULT)
         
         for param in self.backbone.parameters():
             param.requires_grad = False
@@ -170,13 +170,13 @@ class MultiModelTrainer:
             self.current_train_losses = losses
         else:
             self.writer.add_scalar('loss/total/train', self.current_train_losses['total'], self.global_step)
-            self.writer.add_scalar('loss/total/val', self.losses['total'], self.global_step)
+            self.writer.add_scalar('loss/total/val', losses['total'], self.global_step)
             
             self.writer.add_scalar('loss/emotion/train', self.current_train_losses['emotion'], self.global_step)
-            self.writer.add_scalar('loss/emotion/val', self.losses['emotion'], self.global_step)
+            self.writer.add_scalar('loss/emotion/val', losses['emotion'], self.global_step)
             
             self.writer.add_scalar('loss/sentiment/train', self.current_train_losses['sentiment'], self.global_step)
-            self.writer.add_scalar('loss/sentiment/val', self.losses['sentiment'], self.global_step)
+            self.writer.add_scalar('loss/sentiment/val', losses['sentiment'], self.global_step)
         
         if metrics:
             self.writer.add_scalar(f'{phase}/emotion_precision', metrics['emotion_precision'], self.global_step)
