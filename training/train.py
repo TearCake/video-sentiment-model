@@ -2,10 +2,13 @@ import argparse
 import os
 import torch
 import torchaudio
-import tqdm
+from tqdm import tqdm
 from meld_dataset import prepare_dataloaders
 from models import MultimodalSentimentModel, MultimodalTrainer
 import json
+from install_ffmpeg import install_ffmpeg
+import sys
+
 
 SM_MODEL_DIR = os.environ.get("SM_MODEL_DIR", ".")
 SM_CHANNEL_TRAINING = os.environ.get("SM_CHANNEL_TRAINING", "/opt/ml/input/data/training")
@@ -28,6 +31,10 @@ def parse_args():
     return parser.parse_args()
 
 def main():
+    if not install_ffmpeg():
+        print("Failed to install ffmpeg.")
+        sys.exit(1)
+
     # install ffmpeg for video processing
     print("Available audio backends :")
     print(str(torchaudio.list_audio_backends()))

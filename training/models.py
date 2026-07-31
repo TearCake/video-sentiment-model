@@ -127,7 +127,51 @@ class MultimodalSentimentModel(nn.Module):
             'sentiments': sentiment_output
         }
         
-class MultiModelTrainer:
+def compute_class_weights(dataset):
+    emotion_counts = torch.zeros(7)
+    sentiment_counts = torch.zeros(3)
+    skipped = 0
+    total = len(dataset)
+    
+    print("Computing class distributions...")
+    for i in range(total):
+        sample = dataset[i]
+        
+        if sample is None:
+            skipped += 1
+            continue
+        
+        emotion_label = sample['emotion_labels']
+        sentiment_label = sample['sentiment_labels']
+        
+        emotion_counts[emotion_label] += 1
+        sentiment_counts[sentiment_label] += 1
+        
+    valid = total - skipped
+    print(f"Total samples: {total}, Skipped samples: {skipped}, Valid samples: {valid}")
+    
+    print("\nClass distributions:")
+    print("Emotions : ")
+    emotion_map = {0: 'anger', 1: 'disgust', 2: 'fear', 3: 'joy', 4: 'neutral', 5: 'sadness', 6: 'surprise'}
+    for i, count in enumerate(emotion_counts):
+        print(f"{emotion_map[i]}: {count/valid:.2f}")
+    
+    print("\nSentiments : ")
+    sentiment_map = {0: 'negative', 1: 'neutral', 2: 'positive'}
+    for i, count in enumerate(sentiment_counts):
+        print(f"{sentiment_map[i]}: {count/valid:.2f}")
+        
+    # calculate class weights
+    emotion_weights = 1.0 / emotion_counts
+    sentiment_weights = 1.0 / sentiment_counts
+    
+    # normalize weights
+    emotion_weights = emotion_weights / emotion_weights.sum()
+    sentiment_weights = sentiment_weights / sentiment_weights.sum()
+    
+    return emotion_weights, sentiment_weights
+
+class MultimodalTrainer:
     def __init__(self, model, train_loader, val_loader):
         self.model = model
         self.train_loader = train_loader
@@ -162,9 +206,27 @@ class MultiModelTrainer:
         
         self.current_train_losses = None
         
-        self.emotion_criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
-        self.sentiment_criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+        # calculate class weights
+        print("\nCalculating class weights...")
+        emotion_weights, sentiment_weights = compute_class_weights(train_loader.dataset)
         
+        device = next(model.parameters()).device
+        
+        self.emotion_weights = emotion_weights.to(device)
+        self.sentiment_weights = sentiment_weights.to(device)
+        
+        print(f"Emotion class weights on device: {self.emotion_weights.device}")
+        print(f"Sentiment class weights on device: {self.sentiment_weights.device}")
+        
+        self.emotion_criterion = nn.CrossEntropyLoss(
+            weight=self.emotion_weights,
+            label_smoothing=0.05
+        )
+        self.sentiment_criterion = nn.CrossEntropyLoss(
+            weight=self.sentiment_weights,
+            label_smoothing=0.05
+        )
+
     def log_metrics(self, losses, metrics=None, phase="train"):
         if phase == "train":
             self.current_train_losses = losses
