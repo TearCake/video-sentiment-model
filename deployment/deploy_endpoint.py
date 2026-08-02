@@ -1,25 +1,36 @@
-import sagemaker
-from sagemaker.pytorch import PyTorchModel
+from sagemaker.serve import ModelBuilder
+from sagemaker.serve.configs import Resources
+from sagemaker.core.enums import EndpointType
 
 def deploy_endpoint():
-    sagemaker.session()
-    role = "aws-role-name"  # Replace with your SageMaker execution role ARN
-    model_uri = "s3://your-bucket-name/path/to/model.tar.gz"
+    role = "aws-role"
+    model_uri = "s3://bucket-name/path/to/model.tar.gz"
     
-    model = PyTorchModel(
-        model_data=model_uri,
-        role=role,
-        entry_point="inference.py",
-        framework_version="2.5.1",
-        py_version="py311",
-        name="sentiment-analysis-model"
-    )
-    
-    predictor = model.deploy(
-        initial_instance_count=1,
+    resource_config = Resources(
         instance_type="ml.g5.xlarge",
-        endpoint_name="sentiment-analysis-endpoint"
+        initial_instance_count=1
     )
     
+    print("Packaging model via SageMaker V3 ModelBuilder...")
+    model_builder = ModelBuilder(
+        model_metadata={"model_data": model_uri},
+        role_arn=role,
+        entry_point="inference.py",
+        source_dir="training",
+        image_uri=None
+    )
+    print("Building server configurations...")
+    model = model_builder.build()
+
+    print("Deploying endpoint to AWS container cluster (this may take a few minutes)...")
+    predictor = model.deploy(
+        resources=resource_config,
+        endpoint_name="sentiment-analysis-endpoint",
+        endpoint_type=EndpointType.REAL_TIME
+    )
+    
+    print(f"Endpoint successfully deployed! Active at: {predictor.endpoint_name}")
+    return predictor
+
 if __name__ == "__main__":
     deploy_endpoint()

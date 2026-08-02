@@ -41,5 +41,6 @@ outputs/
 *.pth
 *.ckpt
 
-# my files
+# Local SageMaker training script
 train_sagemaker.py
+
