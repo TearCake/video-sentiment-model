@@ -40,3 +40,6 @@ outputs/
 *.pt
 *.pth
 *.ckpt
+
+# my files
+train_sagemaker.py

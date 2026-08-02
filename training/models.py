@@ -17,7 +17,7 @@ class TextEncoder(nn.Module):
         for param in self.bert.parameters():
             param.requires_grad = False
             
-        self.projection = nn.Linear(768, 256)
+        self.projection = nn.Linear(768, 128)
         
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
@@ -86,14 +86,14 @@ class MultimodalSentimentModel(nn.Module):
         
         # Fusion layer
         self.fusion_layer = nn.Sequential(
-            nn.Linear(256 + 128 + 128, 256),
+            nn.Linear(128 + 128 + 128, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
         
         # Classification layer
-        self.emo_classifier = nn.Sequential(
+        self.emotion_classifier = nn.Sequential(
             nn.Linear(256, 64),
             nn.ReLU(),
             nn.Dropout(0.2),
@@ -119,7 +119,7 @@ class MultimodalSentimentModel(nn.Module):
         
         fused_features = self.fusion_layer(combined_features)
         
-        emotion_output = self.emo_classifier(fused_features)
+        emotion_output = self.emotion_classifier(fused_features)
         sentiment_output = self.sentiment_classifier(fused_features)
         
         return {
@@ -141,13 +141,22 @@ def compute_class_weights(dataset):
             skipped += 1
             continue
         
-        emotion_label = sample['emotion_labels']
-        sentiment_label = sample['sentiment_labels']
+        emotion_label = sample['emotion_label']
+        sentiment_label = sample['sentiment_label']
+        
+        if isinstance(emotion_label, torch.Tensor):
+            emotion_label = emotion_label.item()
+        if isinstance(sentiment_label, torch.Tensor):
+            sentiment_label = sentiment_label.item()
         
         emotion_counts[emotion_label] += 1
         sentiment_counts[sentiment_label] += 1
         
     valid = total - skipped
+    
+    if valid == 0:
+        raise ValueError("Error: Zero valid samples found. Check if your video data files exist inside the container.")
+    
     print(f"Total samples: {total}, Skipped samples: {skipped}, Valid samples: {valid}")
     
     print("\nClass distributions:")
@@ -162,8 +171,8 @@ def compute_class_weights(dataset):
         print(f"{sentiment_map[i]}: {count/valid:.2f}")
         
     # calculate class weights
-    emotion_weights = 1.0 / emotion_counts
-    sentiment_weights = 1.0 / sentiment_counts
+    emotion_weights = 1.0 / (emotion_counts + 1e-6)
+    sentiment_weights = 1.0 / (sentiment_counts + 1e-6)
     
     # normalize weights
     emotion_weights = emotion_weights / emotion_weights.sum()
@@ -193,7 +202,7 @@ class MultimodalTrainer:
             {'params': self.model.video_encoder.parameters(), 'lr': 8e-5},
             {'params': self.model.audio_encoder.parameters(), 'lr': 8e-5},
             {'params': self.model.fusion_layer.parameters(), 'lr': 5e-4},
-            {'params': self.model.emo_classifier.parameters(), 'lr': 5e-4},
+            {'params': self.model.emotion_classifier.parameters(), 'lr': 5e-4},
             {'params': self.model.sentiment_classifier.parameters(), 'lr': 5e-4}
         ], weight_decay=1e-5)
         
@@ -263,8 +272,8 @@ class MultimodalTrainer:
             }
             video_frames = batch['video_frames'].to(device)
             audio_features = batch['audio_features'].to(device)
-            emotion_labels = batch['emotion_labels'].to(device)
-            sentiment_labels = batch['sentiment_labels'].to(device)
+            emotion_labels = batch['emotion_label'].to(device)
+            sentiment_labels = batch['sentiment_label'].to(device)
             
             # Zero the gradients
             self.optimizer.zero_grad()
@@ -315,8 +324,8 @@ class MultimodalTrainer:
                 }
                 video_frames = batch['video_frames'].to(device)
                 audio_features = batch['audio_features'].to(device)
-                emotion_labels = batch['emotion_labels'].to(device)
-                sentiment_labels = batch['sentiment_labels'].to(device)
+                emotion_labels = batch['emotion_label'].to(device)
+                sentiment_labels = batch['sentiment_label'].to(device)
                 
                 outputs = self.model(text_inputs, video_frames, audio_features)
                 

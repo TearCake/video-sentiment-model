@@ -1,0 +1,6 @@
+transformers==5.14.0
+openai-whisper==20250625
+numpy==2.4.6
+nvgpu==0.10.0
+soundfile==0.12.1
+ffmpeg-python

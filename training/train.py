@@ -1,3 +1,25 @@
+import sys
+import subprocess
+
+try:
+    import transformers
+    import opencv
+    import soundfile
+except ImportError:
+    print("Dependencies missing inside container. Launching forced automated installation...")
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install",
+        "transformers==5.14.1",
+        "pandas==2.3.3",
+        "tqdm==4.69.0",
+        "boto3==1.43.61",
+        "opencv-python==5.0.0.93",
+        "soundfile==0.14.0",
+        "tensorboard==2.21.0",
+        "scikit-metrics==0.1.1"
+    ])
+    print("Dependencies successfully configured!")
+
 import argparse
 import os
 import torch
@@ -7,13 +29,12 @@ from meld_dataset import prepare_dataloaders
 from models import MultimodalSentimentModel, MultimodalTrainer
 import json
 from install_ffmpeg import install_ffmpeg
-import sys
 
 
 SM_MODEL_DIR = os.environ.get("SM_MODEL_DIR", ".")
 SM_CHANNEL_TRAINING = os.environ.get("SM_CHANNEL_TRAINING", "/opt/ml/input/data/training")
 SM_CHANNEL_VALIDATION = os.environ.get("SM_CHANNEL_VALIDATION", "/opt/ml/input/data/validation")
-SM_CHANNEL_TESTING = os.environ.get("SM_CHANNEL_TESTING", "/opt/ml/input/data/test")
+SM_CHANNEL_TEST = os.environ.get("SM_CHANNEL_TEST", "/opt/ml/input/data/test")
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -25,7 +46,7 @@ def parse_args():
     
     parser.add_argument("--train-dir", type=str, default=SM_CHANNEL_TRAINING)
     parser.add_argument("--val-dir", type=str, default=SM_CHANNEL_VALIDATION)
-    parser.add_argument("--test-dir", type=str, default=SM_CHANNEL_TESTING)
+    parser.add_argument("--test-dir", type=str, default=SM_CHANNEL_TEST)
     parser.add_argument("--model-dir", type=str, default=SM_MODEL_DIR)
     
     return parser.parse_args()
@@ -63,7 +84,7 @@ def main():
     
     model = MultimodalSentimentModel().to(device)
     trainer = MultimodalTrainer(model, train_loader, val_loader)
-    best_val_loss = float('-inf')
+    best_val_loss = float('inf')
     
     metrics_data = {
         'train_losses': [],
