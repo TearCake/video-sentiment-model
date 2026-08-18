@@ -43,4 +43,4 @@ outputs/
 
 # Local SageMaker training script
 train_sagemaker.py
-
+model/

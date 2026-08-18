@@ -6,3 +6,4 @@ opencv-python==5.0.0.93
 soundfile==0.14.0
 tensorboard==2.21.0
 scikit-metrics==0.1.1
+cloudpickle
