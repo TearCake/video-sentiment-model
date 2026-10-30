@@ -10,7 +10,7 @@ An advanced deep learning model that predicts both **Sentiment** (Positive, Neut
 
 ## 🧠 Architecture Overview
 
-[![Architecture diagram of tearcake/video-sentiment-model](https://gitdiagram.com/tearcake/video-sentiment-model/diagram.png)](https://gitdiagram.com/tearcake/video-sentiment-model?utm_source=readme&utm_medium=picture)
+<img width="5151" height="8298" alt="diagram(3)" src="https://github.com/user-attachments/assets/1beec67b-1ac8-44f8-b635-2d9d91f5567f" />
 
 The model fuses three distinct modalities to achieve state-of-the-art context awareness:
 
