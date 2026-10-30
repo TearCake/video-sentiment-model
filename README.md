@@ -10,6 +10,8 @@ An advanced deep learning model that predicts both **Sentiment** (Positive, Neut
 
 ## 🧠 Architecture Overview
 
+[![Architecture diagram of tearcake/video-sentiment-model](https://gitdiagram.com/tearcake/video-sentiment-model/diagram.png)](https://gitdiagram.com/tearcake/video-sentiment-model?utm_source=readme&utm_medium=picture)
+
 The model fuses three distinct modalities to achieve state-of-the-art context awareness:
 
 - **📝 Text Modality (`TextEncoder`)**: Utilizes a frozen **BERT** (`bert-base-uncased`) model from Hugging Face to extract deep semantic meaning from spoken utterances.
