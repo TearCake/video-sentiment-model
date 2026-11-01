@@ -1,4 +1,4 @@
-transformers
+transformers<5.0.0
 openai-whisper
 opencv-python-headless
 ffmpeg-python

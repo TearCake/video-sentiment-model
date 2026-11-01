@@ -23,17 +23,35 @@ MODEL_NAME     = os.environ.get("MODEL_NAME")
 EP_CONFIG_NAME = os.environ.get("EP_CONFIG_NAME")
 INSTANCE_TYPE  = os.environ.get("INSTANCE_TYPE")
 
-IMAGE_URI = (
-    os.environ.get("IMAGE_URI_ARN"),
-    os.environ.get("IMAGE_URI_NAME")
-)
+IMAGE_URI = f"{os.environ.get('IMAGE_URI_ARN')}{os.environ.get('IMAGE_URI_NAME')}"
 
 SCRIPT_DIR     = os.path.dirname(os.path.abspath(__file__))
 INFERENCE_FILE = os.path.join(SCRIPT_DIR, "inference.py")
 REQUIREMENTS   = os.path.join(SCRIPT_DIR, "requirements.txt")
 
 # ---------------------------------------------------------------------------
-# Step 1: Repackage model.tar.gz  (add code/ subdirectory)
+# Step 1: Package and upload code only (inference.py + requirements.txt)
+# ---------------------------------------------------------------------------
+def package_code() -> str:
+    s3 = boto3.client("s3", region_name=REGION)
+    code_key = "inference/sourcedir.tar.gz"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tar_path = os.path.join(tmp, "sourcedir.tar.gz")
+        print(f"[1/3] Packaging inference.py and requirements.txt into sourcedir.tar.gz …")
+        with tarfile.open(tar_path, "w:gz") as tar:
+            tar.add(INFERENCE_FILE, arcname="inference.py")
+            tar.add(REQUIREMENTS,   arcname="requirements.txt")
+
+        size_kb = os.path.getsize(tar_path) / 1024
+        print(f"[2/3] Uploading sourcedir.tar.gz ({size_kb:.1f} KB) to s3://{UPLOAD_BUCKET}/{code_key} …")
+        s3.upload_file(tar_path, UPLOAD_BUCKET, code_key)
+
+    return f"s3://{UPLOAD_BUCKET}/{code_key}"
+
+
+# ---------------------------------------------------------------------------
+# Optional fallback: Repackage model.tar.gz (if monolithic tarball is ever needed)
 # ---------------------------------------------------------------------------
 def repackage_model() -> str:
     s3 = boto3.client("s3", region_name=REGION)
@@ -72,7 +90,7 @@ def repackage_model() -> str:
 # ---------------------------------------------------------------------------
 # Step 2: Deploy via raw boto3  (Model → EndpointConfig → Endpoint)
 # ---------------------------------------------------------------------------
-def deploy(model_s3_uri: str):
+def deploy(model_s3_uri: str, source_code_s3_uri: str):
     sm = boto3.client("sagemaker", region_name=REGION)
 
     # Delete old endpoint / config / model if they exist
@@ -88,7 +106,7 @@ def deploy(model_s3_uri: str):
         except Exception:
             pass  # resource didn't exist — fine
 
-    print(f"[4/4] Creating SageMaker Model: {MODEL_NAME}")
+    print(f"[3/3] Creating SageMaker Model: {MODEL_NAME}")
     sm.create_model(
         ModelName=MODEL_NAME,
         PrimaryContainer={
@@ -96,7 +114,7 @@ def deploy(model_s3_uri: str):
             "ModelDataUrl": model_s3_uri,
             "Environment": {
                 "SAGEMAKER_PROGRAM": "inference.py",
-                "SAGEMAKER_SUBMIT_DIRECTORY": "/opt/ml/model/code",
+                "SAGEMAKER_SUBMIT_DIRECTORY": source_code_s3_uri,
                 "MMS_DEFAULT_RESPONSE_TIMEOUT": "500",
             },
         },
@@ -135,5 +153,12 @@ def deploy(model_s3_uri: str):
 
 
 if __name__ == "__main__":
-    model_uri = repackage_model()
-    deploy(model_uri)
+    import sys
+    if "--repack" in sys.argv:
+        print("Forced full repacking requested...")
+        model_uri = repackage_model()
+        deploy(model_s3_uri=model_uri, source_code_s3_uri="/opt/ml/model/code")
+    else:
+        # Decoupled deployment: upload lightweight code (~6 KB) without downloading 570 MB model weights
+        code_s3_uri = package_code()
+        deploy(model_s3_uri=ORIG_MODEL_S3, source_code_s3_uri=code_s3_uri)
